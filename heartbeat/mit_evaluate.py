@@ -1,28 +1,40 @@
+import numpy as np
 import joblib
 import sklearn.metrics as metrics 
 import pandas as pd 
 
-def main(): 
-    test = pd.read_csv("data/heartbeat/mitbih_test.csv", header = None)
-    X = test.iloc[:, :-1]
-    y_true = test.iloc[:, -1]
-
-    model = joblib.load("model/mit_svm.pkl")
+def evaluate(X, y, model): 
     y_pred = model.predict(X)
 
-    kappa = metrics.cohen_kappa_score(y_true, y_pred)
-    balanced_accuracy = metrics.balanced_accuracy_score(y_pred=y_pred, y_true=y_true)
-    confusion_matrix = metrics.confusion_matrix(y_true, y_pred)
-    mcc = metrics.matthews_corrcoef(y_true, y_pred)
-    weighted_precision = metrics.precision_score(y_true, y_pred, average="weighted")
-    weighted_recall = metrics.recall_score(y_true, y_pred, average="weighted")
+    balanced_accuracy = metrics.balanced_accuracy_score(y_pred=y_pred, y_true=y)
+    confusion_matrix = np.round(metrics.confusion_matrix(y, y_pred, normalize="true"),2)
+    macro_precision = metrics.precision_score(y, y_pred, average="macro")
+    macro_recall = metrics.recall_score(y, y_pred, average="macro")
 
     print("Confusion matrix: \n", confusion_matrix)
-    print("Kappa: ", kappa)
     print("Balanced Acc: ", balanced_accuracy)
-    print("Matthews correlation coefficient: ", mcc)
-    print("Weighted Precision: ", weighted_precision)
-    print("Weighted Recall: ", weighted_recall)
+    print("Macro Precision: ", macro_precision)
+    print("Macro Recall: ", macro_recall)
+
+
+def main(): 
+    train = pd.read_csv("data/heartbeat/mitbih_train.csv", header = None)
+    X_train = train.iloc[:, :-1]
+    y_train = train.iloc[:, -1]
+
+    test = pd.read_csv("data/heartbeat/mitbih_test.csv", header = None)
+    X_test = test.iloc[:, :-1]
+    y_test = test.iloc[:, -1]
+
+    model = joblib.load("model/mit_tree.pkl")
+    print(model.get_params())
+
+    print("Evaluate on train set: ")
+    print("--------------------------------------")
+    evaluate(X_train, y_train, model)
+    print("Evaluate on test set: ")
+    print("--------------------------------------")
+    evaluate(X_test, y_test, model)
 
 
 if __name__ == "__main__": 

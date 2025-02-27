@@ -2,3 +2,7 @@ data
 analysis
 .cache
 model
+*.aux
+*.log
+*.gz
+*.png
