@@ -1,5 +1,6 @@
 \documentclass[conference]{IEEEtran}
 \usepackage{cite}
+\usepackage{graphicx}
 
 \title{ECG Heartbeat Classification for Arrhythmia Detection: A Machine Learning Approach}
 \author{
@@ -14,33 +15,158 @@
 \begin{document}
 	\maketitle
 	\begin{abstract}	
-		
+		Classifying ECG heartbeat automatically for diagnosing arrhythmia has gain the attention of researchers recent years. In this report, I represent an approach to the problem using random forest, a popular ensemble model used in supervised classification task. Although the result is comparable to others, it still requires more works to be done on preprocessing aspect. 
 	\end{abstract}
 	
 	\begin{IEEEkeywords}
-		ECG, arrhythmia, machine learning, random forest
+		ECG, arrhythmia, machine learning, signal classification
 	\end{IEEEkeywords}
 	
 	\section{Introduction}
 	
-	Arrhythmia is a term refers to any problem that relate to abnormal heartbeat rhythm. There are mainly 2 types of arrhythmia. A heart beats too fast (more than 100 beats per minute when resting) is called tachycardia \cite{tachycardia}. A heart beats too slow (less than 60 beats per minutes when resting) is called bradycardia \cite{bradycardia}. Tachycardia can cause fainting and thrombosis (i.e., blood clots blocking blood vessels). Bradycardia, although it can be normal for most cases, especially for healthy people or athletes, it could lead to many symptoms such as chest pain, confusion, memory problems, etc. Therefore, being able to classify heartbeat from ECG is crucial. 
+	Arrhythmia is a term refers to any problem that relate to abnormal heartbeat rhythm. There are mainly 2 types of arrhythmia. A heart beats too fast (more than 100 beats per minute when resting) is called tachycardia \cite{tachycardia} (Figure \ref{fig:fast}). A heart beats too slow (less than 60 beats per minutes when resting) is called bradycardia \cite{bradycardia}. Tachycardia can cause fainting and thrombosis (i.e., blood clots blocking blood vessels). Bradycardia, although it can be normal for most cases, especially for healthy people or athletes, it could lead to many symptoms such as chest pain, confusion, memory problems, etc. Therefore, being able to classify heartbeat from ECG signal is crucial. Unfortunately, classifying ECG signal is a difficult and time-consuming task that require the consultation of professional physicians. Thus, being able to achieve the task automatically is of great importance. 
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width=7cm]{./figures/tachycardia.png}
+		\label{fig:fast}
+		\caption{A sample of fast heartbeat rhythm}
+	\end{figure}
+	
+	There are a number of researches have been done on classify ECG signals automatically. \cite{esmaili} preprocessed data using bidirectional infinite impulse response filter with band-pass filter with non-linear blood pressure - pulse transit time (BP-PTT) model. \cite{kachuee} provides a preprocessing procedure to extract beat and a deep learning model using 1D CNN to classify. \cite{guan} used low-dimensional denoising embedding transformer (LDTF) with the same preprocessing steps as \cite{kachuee}. In this report, I will apply random forest on MIT-BIH dataset, which is the same as \cite{kachuee, guan}
+	
+	The report is structured as follow: Section 2 describes the dataset: metadata and data analysis, section 3 describes the experiment protocol and section 4 is conclusion. 
 	
 	 
 	\section{Dataset}
-	\subsection{Preliminary Information}
-	\subsection{Data Analysis}
+	In this section, I represent how the data were collected, preprocessed and some explanatory data analysis on the train dataset. 
+	
+	ECG signals consists of 48 ECG recordings, collected using a two-channel ambulatory ECG monitoring from 47 patients. These recordings are preprocessed using the following procedures \cite{kachuee}:
+	 
+	\begin{enumerate}
+		\item Split ECG signals to 10-second windows. For each of these windows, do the following steps. 
+		\item Normalize signal to the range 0 and 1
+		\item Find all local maximums
+		\item Find all ECG R-peak candidates. 
+		\item Calculate nominal heartbeat period T = median(R-R time intervals)
+		\item For each R-peak candidate, select a signal sequence of length L = T
+		\item Padding each sequence with 0s to a predefined fixed length (in this case is 187) 
+	\end{enumerate}
+	
+	\begin{figure}
+		\centering
+		\includegraphics[width=8cm]{./figures/sample.png}
+		\caption{A sample of processed ECG signal}
+		\label{sample}
+	\end{figure}
+	
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width=8cm]{./figures/label_dist.png}
+		\caption{Label distribution}
+		\label{label_dist}
+	\end{figure}
+	
+	The result is a table containing 109446 heartbeat samples (see Figure \ref{sample}), each has 187 features with 1 label. There are 5 classes: N, S, V, F, Q, which are encoded to integer from 0 to 5, respectively. Figure \ref{label_dist} displays the distribution of labels in training dataset. It is observed that the data is highly imbalanced. The dataset is further divided into train set (87554 samples) and test set (21892 samples).
+	
+
+
+	
+	
 	\section{Experiment}
+	In this section, I describe the training and hyperparameter tuning process for the random forest model, evaluate model's performance and compare it to existing works. 
+	\subsection{Training and Hyperparameter Tuning}
+	In my approach, I use random forest, an ensemble model constructed by combining multiple small decision trees. During training and tuning process, I focused on 2 hyperparameters: maximum depth of the tree and the number of trees in the forest (see Table \ref{param_grid} for the range I used). The process is done sequentially, begin with maximum depth first since it is set to infinity by default of scikit-learn library. This can easily lead to overfitting. The optimal values are found using 5-fold cross validation with grid search approach. 
+	
+	\begin{table}[h]
+		\centering
+		\caption{Grid of parameters for grid search}
+		\label{param_grid}
+		\begin{tabular}{|c|c|}
+			\hline
+			Parameters & Range of values \\ 
+			\hline 
+			max\_depth & 1,3,5,...,19 \\ 
+			n\_estimators & 50, 100, ..., 500 \\
+			\hline 		
+		\end{tabular}
+	\end{table}
+	
+	Table \ref{tab:param} summarizes the parameters obtained from grid search. One thing worth mentioning is that I set class weight is "balanced", i.e., each class is automatically set a weight as: 
+	
+	\[ w_c = \frac{N}{C * count(c)} \]
+	where $w_c$ is the weight associated with class $c$, $N$ is the total number of samples and $C$ is number of classes. If a class has small samples compare to other, the weight will be more significant, and vice versa. This is to cope with imbalance dataset, as shown in Figure \ref{label_dist}. 
+	
+	\begin{table}[h]
+		\centering
+		\caption{Final random forest hyperparameters}
+		\label{tab:param}
+		\begin{tabular}{|c|c|}
+			\hline
+			Parameters & Values\\
+			\hline
+			n\_estimators & 400 \\ 
+			max\_depth & 9 \\ 
+			class\_weight & balanced \\
+			\hline 
+		\end{tabular}
+	\end{table}
+	
+	
+	\subsection{Evaluation}
+	Beside the confusion matrix shown in Figure \ref{test_cm}, for evaluating the model, I use 3 metrics precision, recall (both using macro method to account for imbalance), and overall accuracy. Macro precision is calculated by averaging precision for each class: 
+	
+	\[ Macro precision = \frac{1}{C} \sum_{c \in C} \frac{TP_c}{TP_c + FP_c} \]
+	
+	where $TP_c$, $FP_c$ is number of true positive, false positive when consider $c$ as the positive class.  Similarly, macro recall is calculated as: 
+	
+	\[  Macro recall = \frac{1}{C} \sum_{c \in C} \frac{TP_c}{TP_c + FN_c} \]
+	
+	Accuracy is calculated as: 
+	
+	\[ Accuracy = \frac{TP + TN}{TP + TN + FP + FN} \]
+	
+	Table \ref{tab:result} shows the result of the model. Though it is observe that my accuracy is similar to \cite{kachuee}, when considering macro precision and recall, the metrics is not impressive. 
+	
+	\begin{figure}
+		\label{test_cm}
+		\includegraphics[width=0.55\textwidth]{./figures/test_cm.png}
+		\caption{Normalized confusion matrix}
+	\end{figure}
+	
+	\begin{table}[h]
+		\centering
+		\label{tab:result}
+		\caption{My result compare to other}
+		\begin{tabular}{|c|c|c|c|c|}
+			\hline
+				& Precision & Recall & Accuracy \\
+			\hline
+			\cite{kachuee} & - & - & 93.4 \\
+			This  & 71.9 & 86.7 & 93.3 \\
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	
+	
 	\section{Conclusion}
+	In this report, I show an approach to the ECG heartbeat classification problem. The overall accuracy is competitive, but other metrics that account the imbalance is not good enough. This suggest that there are more opportunities for improvement. The future works will focus on further preprocess the data using either traditional digital signal processing techniques or deep learning architectures that is capable of processing sequential data such as 1D CNN, RNN or LSTM. 
 
 
 	\begin{thebibliography}{9}
 	\bibitem{tachycardia} Awtry EH, Jeon C, Ware MG (2006). "Tachyarrhythmias". Blueprints Cardiology (2nd ed.). Malden, Mass.: Blackwell. p. 93. ISBN 9781405104647.
 	
 	\bibitem{bradycardia} Hafeez Y, Grossman SA (9 August 2021). "Sinus bradycardia". StatPearls [Internet]. Treasure Island (FL): StatPearls Publishing. PMID 29630253. Retrieved 16 January 2022.
+	
+	\bibitem{esmaili} A. Esmaili, M. Kachuee, and M. Shabany, “Nonlinear cuffless blood pressure estimation of healthy subjects using pulse transit time and arrival time,” IEEE Transactions on Instrumentation and Measurement, vol. 66, no. 12, pp. 3299–3308, 2017.
 		
 	\bibitem{kachuee} M. Kachuee, S. Fazeli, and M. Sarrafzadeh, “ECG Heartbeat Classification: A Deep Transferable Representation,” in 2018 IEEE International Conference on Healthcare Informatics (ICHI), Jun. 2018, pp. 443–444. doi: 10.1109/ICHI.2018.00092.
 	
 	\bibitem{guan} J. Guan, W. Wang, P. Feng, X. Wang and W. Wang, "Low-Dimensional Denoising Embedding Transformer for ECG Classification," ICASSP 2021 - 2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Toronto, ON, Canada, 2021, pp. 1285-1289, doi: 10.1109/ICASSP39728.2021.9413766. 
+	
+	\bibitem{mitbih}Moody GB, Mark RG. The impact of the MIT-BIH Arrhythmia Database. IEEE Eng in Med and Biol 20(3):45-50 (May-June 2001). (PMID: 11446209)
 	
 	
 
