@@ -10,8 +10,20 @@ from torchvision.io import read_image
 import torchvision.transforms.v2 as v2
 
 class HCDataset(Dataset): 
-    def __init__(self, path, transform = None, mask_transform = None): 
+    def __init__(self, path):  
         self.data_path = path
+
+        transform = v2.Compose([
+            v2.ToImage(), 
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Resize((640,640)), 
+        ])
+
+        mask_transform = v2.Compose([
+            v2.ToImage(), 
+            v2.Resize((640,640)), 
+        ])
+
         self.transform = transform
         self.mask_transform = mask_transform
     
@@ -32,15 +44,17 @@ class HCDataset(Dataset):
             mask = self.mask_transform(mask)
 
         hc = self.get_head_circumference(img_list[index])
+        pixel_size = self.get_pixel_size(img_list[index])
             
         gt = {}
-        gt['mask'] = mask
+        gt['mask'] = mask.to(torch.float)
         gt['hc'] = hc
+        gt['pixel_size'] = pixel_size
 
         return img, gt
 
     def __len__(self): 
-        return len(os.listdir(self.data_path))/2
+        return int(len(os.listdir(self.data_path))/2)
 
     def fill_head(self, path): 
         """ 
@@ -68,7 +82,7 @@ class HCDataset(Dataset):
 
     def get_head_circumference(self, path): 
         """ 
-        Given image path, return its head circumference label
+        Given image path, return its head circumference 
         
         Parameter: 
         ------------
@@ -76,15 +90,28 @@ class HCDataset(Dataset):
 
         Output: 
         -------
-        Int: Head circumference of input image        
+        Float: Head circumference of input image        
         """
         
         hc_df = pd.read_csv("data/hc18/training_set_pixel_size_and_HC.csv")
         row = hc_df[hc_df["filename"] == path]
         hc = row["head circumference (mm)"]
         return hc.item() 
-        
 
-if __name__ == "__main__": 
-    dataset = Dataset()
-    img, mask = Dataset[0]
+    def get_pixel_size(self, path): 
+        """ 
+        Given image path, return its pixel size
+        
+        Parameter: 
+        ------------
+        path(String): path of image
+
+        Output: 
+        -------
+        Float: Pixel size of input image
+        """
+
+        hc_df = pd.read_csv("data/hc18/training_set_pixel_size_and_HC.csv")
+        row = hc_df[hc_df["filename"] == path]
+        pixel_size = row["pixel size(mm)"]
+        return pixel_size.item() 

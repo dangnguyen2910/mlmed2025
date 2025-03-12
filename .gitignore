@@ -6,4 +6,5 @@ model
 *.log
 *.gz
 *.png
-hc18/__pycache__
+__pycache__
+output
