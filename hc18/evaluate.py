@@ -40,7 +40,7 @@ def main() -> None:
 
             output_mask = model(img).squeeze()
             output_mask = output_mask.cpu().numpy()
-            output_mask = (output_mask >= 0.1).astype(int)
+            output_mask = (output_mask >= 0.5).astype(int)
 
             # Save output masks
             fig = plt.figure()
@@ -52,6 +52,7 @@ def main() -> None:
             plt.close()
 
             hc_pred = mask_to_hc(output_mask)
+            print(f"{i}.png")
             hc_pred = pixel_to_mm(hc_pred, mm_per_pixel)
 
             hc_pred_list.append(hc_pred)
@@ -74,23 +75,32 @@ def mask_to_hc(mask) -> float:
     --- 
     Float: Head circumference 
     """
+
+    # To perform findContours twice, I need a temporary image to draw the first 
+    # contour set. 
+    intermediate_image = np.full((640,640), 0, dtype=np.uint8)
+    target = np.full((640,640), 0, dtype=np.uint8)
     mask = mask.astype(np.uint8)
+
     edges = canny(mask, low_threshold=0, high_threshold=1).astype(np.uint8)
+
     contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    print(f"Number of contours detected: {len(contours)}")
-    for contour in contours: 
-        if len(contour) < 5: 
-            continue
+    cv2.drawContours(intermediate_image, contours, -1, 255, 2)
 
-        ellipse = cv2.fitEllipse(contour)
-        
-        short_axis = ellipse[1][0]
-        long_axis = ellipse[1][1]
+    contours, _ = cv2.findContours(intermediate_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contour = max(contours, key=len)
+    cv2.drawContours(target, contour, -1, 255, 2)
 
-        break
+    ellipse = cv2.fitEllipse(contour)
+    hc_list = []
+    
+    short_axis = ellipse[1][0]
+    long_axis = ellipse[1][1]
 
     head_circumference = approximate_ellipse_circumference(short_axis, long_axis)
-    return head_circumference
+    hc_list.append(head_circumference)
+
+    return np.max(hc_list)
     
 
 def approximate_ellipse_circumference(a:float, b:float) -> float: 
@@ -99,13 +109,15 @@ def approximate_ellipse_circumference(a:float, b:float) -> float:
 
     Parameter: 
     --- 
-    a (float): length of one axis
-    b (float): length of other axis
+    a (float): diameter of one axis
+    b (float): diameter of other axis
 
     Output: 
     ---
     Float: Approximation of ellipse circumference
     """
+    a /= 2
+    b /= 2
     l = (a - b)/(a + b)
     return np.pi * (a+b) * (1 + (3 * l**2)/(10 + np.sqrt(4 - 3*l**2)))
     
