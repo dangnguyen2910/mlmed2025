@@ -6,3 +6,7 @@ model
 *.log
 *.gz
 *.png
+__pycache__
+output
+*.zip
+.pytest_cache
